@@ -242,7 +242,7 @@ void setup() {
   pinMode(FAN_PIN,OUTPUT);
   digitalWrite(FAN_PIN, 1);
   Serial.begin(115200);
-//  waiting_data.reserve(200); // FIXME: check for overflows
+  waiting_data.reserve(200); // FIXME: check for overflows
   for (int i=0; i<4; i++) {
     pinMode(step_pin[i],OUTPUT);
     pinMode(dir_pin[i],OUTPUT);
@@ -280,6 +280,7 @@ void loop() {
 		gotoXY(0,70);
 		moveTo(0,0);
 		servo.write(43);
+		first_time = false;
 	}
 
 	if (current_command == commands_saved && current_command > 0) {
@@ -308,12 +309,14 @@ void serialEvent() {
 	3: reading is_drawn
 	4: error*/
 	while (Serial.available()) {
+		Serial.println("received_serial");
 		if(commands_saved == MAX_COMMANDS) {
 			Serial.println("STACK_FULL");
 			break;
 		}
 		// get the new byte:
 		char inChar = (char)Serial.read();
+		Serial.println("received_serial" + inChar);
 		if (inChar == '\n') {
 			if (serial_state != WAITING_EOL) {
 				Serial.println("ERROR");
