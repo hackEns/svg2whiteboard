@@ -57,6 +57,32 @@ float frac[] = {0.,0.,0.,0.};
 #define stepsPerCm 682.0f
 float spdcmps = 60.0f;
 
+// Serial management
+
+// memory to store a list of points
+#define MAX_COMMANDS 10
+float stacked_points_x[MAX_COMMANDS];
+float stacked_points_y[MAX_COMMANDS];
+bool stacked_points_drawn[MAX_COMMANDS];
+
+// how far the stacked_points_* array should be browsed (the last points could not be relevant)
+int commands_saved = 0;
+
+#define START_LINE 0
+#define READING_X 1
+#define READING_Y 2
+#define READING_IS_DRAWN 3
+#define WAITING_EOL 4
+#define SERIAL_ERROR 5
+
+int serial_state = START_LINE;
+String waiting_data;
+float waiting_x = 0.;
+float waiting_y = 0.;
+boolean waiting_drawn = true;
+
+
+
 
 // Advance axis /axis/ to increase its position by /dxc/ (positive, given in centimeters).
 // /dxc/ can be fractionnal. To be safe, always give distance < 1/stepsPerCm, since the steppers
@@ -216,6 +242,7 @@ void setup() {
   pinMode(FAN_PIN,OUTPUT);
   digitalWrite(FAN_PIN, 1);
   Serial.begin(115200);
+//  waiting_data.reserve(200); // FIXME: check for overflows
   for (int i=0; i<4; i++) {
     pinMode(step_pin[i],OUTPUT);
     pinMode(dir_pin[i],OUTPUT);
@@ -230,24 +257,103 @@ void setup() {
   servo.attach(SERVO_PIN);
 }
 
-void loop() {
-  servo.write(43);
-  servo.write(55);
-  /*delay(2000);
-  servo.write(55);
-  delay(2000);*/
-  
-  delay(1000);
-  //interpretCommand();
-  
-  gotoXY(0,70);
-  moveTo(0,0);
-  servo.write(43);
-  draw();
-  servo.write(55);
-  gotoXY(0,70);
-  
-  delay(1000);
+bool first_time = true;
+int current_command = 0;
+
+void erase_saved_commands () {
+	current_command = 0;
+	commands_saved = 0;
+	Serial.println("REQUEST_DATA");
 }
 
+void loop() {
+	if(first_time) {
+		servo.write(43);
+		servo.write(55);
+		/*delay(2000);
+		  servo.write(55);
+		  delay(2000);*/
 
+		delay(1000);
+		//interpretCommand();
+
+		gotoXY(0,70);
+		moveTo(0,0);
+		servo.write(43);
+	}
+
+	if (current_command == commands_saved && current_command > 0) {
+		erase_saved_commands ();
+	}
+	else if(current_command < commands_saved) {
+		if (stacked_points_drawn[current_command]) {
+			servo.write(43);
+		}
+		else {
+			servo.write(55);
+		}
+		lineToRel (stacked_points_x[current_command], stacked_points_y[current_command]);
+		current_command++;
+	}
+	
+
+	delay(100);
+}
+
+void serialEvent() {
+	/* small automaton */
+	/* 0: start of a line
+	1: reading X
+	2: reading Y
+	3: reading is_drawn
+	4: error*/
+	while (Serial.available()) {
+		if(commands_saved == MAX_COMMANDS) {
+			Serial.println("STACK_FULL");
+			break;
+		}
+		// get the new byte:
+		char inChar = (char)Serial.read();
+		if (inChar == '\n') {
+			if (serial_state != WAITING_EOL) {
+				Serial.println("ERROR");
+			}
+			else {
+				stacked_points_x[commands_saved] = waiting_x;
+				stacked_points_y[commands_saved] = waiting_y;
+				stacked_points_drawn[commands_saved] = waiting_drawn;
+				commands_saved ++;
+			}
+			serial_state = START_LINE;
+		} else if (serial_state == START_LINE && inChar == 'P') {
+			serial_state = READING_X;
+			waiting_data = "";
+		}
+		else if (serial_state == READING_X && inChar == ';') {
+			serial_state = READING_Y;
+			waiting_x = waiting_data.toFloat ();
+			waiting_data = "";
+		}
+		else if (serial_state == READING_Y && inChar == ';') {
+			serial_state = READING_IS_DRAWN;
+			waiting_y = waiting_data.toFloat ();
+			waiting_data = "";
+		}
+		else if (serial_state == READING_IS_DRAWN) {
+			if(inChar == '0') {
+				waiting_drawn = false;
+				serial_state = WAITING_EOL;
+			} else if(inChar == '1') {
+				waiting_drawn = true;
+				serial_state = WAITING_EOL;
+			}
+			else {
+				serial_state = SERIAL_ERROR;
+				Serial.println("ERROR");
+			}
+		}
+		else if (serial_state == READING_X || serial_state == READING_Y) {
+			waiting_data += inChar;
+		}
+	}
+}
