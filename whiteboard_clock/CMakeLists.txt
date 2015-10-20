@@ -5,7 +5,7 @@
 set(CMAKE_TOOLCHAIN_FILE cmake/ArduinoToolchain.cmake) # Arduino Toolchain
 
 set(ARDUINO_DEFAULT_BOARD mega) # Default Board ID, when not specified
-set(ARDUINO_DEFAULT_PORT /dev/ttyACM0) # Default Port, when not specified
+set(ARDUINO_DEFAULT_PORT /dev/ttyACM1) # Default Port, when not specified
 cmake_minimum_required(VERSION 2.8)
 #====================================================================#
 #  Setup Project                                                     #
@@ -45,7 +45,7 @@ include_directories(/usr/share/arduino/libraries/Servo/src/)
 generate_arduino_firmware(whiteboard_clock
     SKETCH "whiteboard_clock.ino"
     LIBS servo_lib
-    PORT  /dev/ttyACM0
+    PORT  /dev/ttyACM1
     SERIAL picocom @SERIAL_PORT@
     BOARD mega)
 

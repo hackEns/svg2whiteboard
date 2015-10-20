@@ -213,9 +213,11 @@ int datalen = 7;
 Servo servo;
 
 void setup() {
+
   pinMode(FAN_PIN,OUTPUT);
   digitalWrite(FAN_PIN, 1);
   Serial.begin(115200);
+Serial.println("test");
   for (int i=0; i<4; i++) {
     pinMode(step_pin[i],OUTPUT);
     pinMode(dir_pin[i],OUTPUT);
