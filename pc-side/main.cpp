@@ -77,8 +77,6 @@ void parsePath(std::string data, std::vector<coord> &path_list) {
                 data<<acc;
                 std::string coords;
                 while (data >> coords) {
-                    if (up(coords))
-                        std::cout<<"moveTo("<<coords<<");"<<std::endl;
                     p.x = x(coords);
                     p.y = y(coords);
 					p.type = 0;
@@ -91,27 +89,24 @@ void parsePath(std::string data, std::vector<coord> &path_list) {
                 data<<acc;
                 std::string coords;
                 while (data >> coords, data>>coords, data>>coords) {
-                    if (up(coords))
-                        std::cout<<"lineTo("<<coords<<");"<<std::endl;
                     p.x = x(coords);
                     p.y = y(coords);
 					p.type = 1;
 					path_list.push_back(p);
                 }
             }
-            else if (keyword==std::string("c")) {  //Curve relative
-                std::stringstream data;
-                data<<acc;
-                std::string coords;
-                while (data >> coords, data>>coords, data>>coords) {
-					coord p;
-					p.x = x(coords);
-					p.y = y(coords);
-					p.type = 2;
-                    if (up(coords))
-						path_list.push_back(p);
-                }
-            }
+	    else if (keyword=="c") {  //Curve relative
+		    std::stringstream data;
+		    data<<acc;
+		    std::string coords;
+		    while (data >> coords, data>>coords, data>>coords) {
+			    coord p;
+			    p.x = x(coords) + (--path_list.end())->x;
+			    p.y = y(coords) + (--path_list.end())->y;
+			    p.type = 2;
+			    path_list.push_back(p);
+		    }
+	    }
 
             keyword = token;
             acc = std::string();
@@ -167,42 +162,78 @@ void dump_to_stdout(const char* pFilename, std::vector<coord> &path_list) {
 	}
 }
 
+#define BOX 30.0f
+
 int main(int argc, char* argv[])
 {
 	std::vector<coord> path_list;
 	for (int i=2; i<argc; i++) {
 		dump_to_stdout(argv[i], path_list);
 	}
-	cout << path_list.size() << endl;
-	for(coord i: path_list) {
-		cout << i.x << endl << i.y << i.type << endl;
+	if (path_list.size () == 0) {
+		cout << "No path" << endl;
+		return 1;
 	}
-    try {
+	try {
 
-        SimpleSerial serial(argv[1],115200);
+		SimpleSerial serial(argv[1],115200);
+		auto min_coord = [](coord a, coord b) {
+			a.x = min(a.x, b.x);
+			a.y = min(a.y, b.y);
+			return a;};
+		auto max_coord = [](coord a, coord b) {
+			a.x = max(a.x, b.x);
+			a.y = max(a.y, b.y);
+			return a;};
+		coord cmin = accumulate(path_list.begin(), path_list.end(), path_list[0], min_coord);
+		coord cmax = accumulate(path_list.begin(), path_list.end(), path_list[0], max_coord);
+		float scale = BOX/max(cmax.y - cmin.y, cmax.x - cmin.x);
+		cout << cmax.y << endl << cmax.x << endl;
 
-	
-			int i = 0;
-			for(coord co: path_list) {
-				if(i > 1) {
-					std::ostringstream ostrx;
-					std::ostringstream ostry;
+		int i = 0;
+		for(coord co: path_list) {
+			if(i <= 2) {
+				std::ostringstream ostrx;
+				std::ostringstream ostry;
 
-					  ostry << co.y;
-					  ostrx << co.x;
+				ostry << ((co.y - (cmax.y + cmin.y)/2))*scale;
+				ostrx << ((co.x - (cmax.x + cmin.x)/2))*scale;
 
-					    std::string xvalue = ostrx.str();
-					    std::string yvalue = ostry.str();
-        			serial.writeString("P" + xvalue + ";" + yvalue + ";1\n");
-        			cout << ("P" + xvalue + ";" + yvalue + ";1\n") << endl;
+				std::string xvalue = ostrx.str();
+				std::string yvalue = ostry.str();
+				serial.writeString("P" + xvalue + ";" + yvalue + ";1\n");
+				cout << co.y << endl << co.x << endl;
+				cout << ("P" + xvalue + ";" + yvalue + ";1\n") << endl;
+			}
+			else {
+				while(true) {
+					auto r = serial.readLine ();
+					if (r == "REQUEST_DATA") {
+						break;
+					}
+					else {
+						cout << r << endl;
+					}
 				}
-					i++;
+				i = 0;
+			}
+			i++;
+		}
+		while(true) {
+			auto r = serial.readLine ();
+			if (r == "REQUEST_DATA") {
+				cout << "End of drawing" << endl;
+				break;
+			}
+			else {
+				cout << r << endl;
 			}
 		}
+	}
 
-    catch(boost::system::system_error& e)
-    {
-        cout<<"Error: "<<e.what()<<endl;
-        return 1;
-    }
+	catch(boost::system::system_error& e)
+	{
+		cout<<"Error: "<<e.what()<<endl;
+		return 1;
+	}
 }

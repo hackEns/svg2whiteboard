@@ -166,7 +166,7 @@ float l2(float x, float y) {
 }
 
 // Current (l1,l2)
-float cl1=12, cl2=12;
+float cl1=70, cl2=70;
 
 void mv(float l1, float l2) {
   Serial.print("We are at ");
@@ -213,28 +213,17 @@ void interpretCommand() {
   coordinated(rl1,rl2,spdcmps);
 }
 
-float xmin = -44.4175;
-float xmax = 15.5938;
-float ymin = -11.9128;
-float ymax = 26.7276;
-
-
-float f = 4.0f;//(xmax-xmin)/15;
-
 void moveTo(float x, float y) {
-  gotoXY(x/f,y/f+y0);
+  gotoXY(x,y+y0);
 }
 void lineTo(float x, float y) {
-  gotoXY(x/f,y/f+y0);
+  gotoXY(x,y+y0);
 }
 void lineToRel(float x, float y) {
-  gotoXY(currentX+x/f, currentY+y/f);
+  gotoXY(currentX+x, currentY+y);
 }
 #include "commands.c"
 
-
-float data[] = {0,0, 2,-2, -2,-2, -2,0, 2,0, 2,2, -2,2};
-int datalen = 7;
 
 Servo servo;
 
@@ -294,7 +283,7 @@ void loop() {
 		else {
 			servo.write(55);
 		}
-		lineToRel (stacked_points_x[current_command], stacked_points_y[current_command]);
+		moveTo (stacked_points_x[current_command], stacked_points_y[current_command]);
 		current_command++;
 	}
 
@@ -309,14 +298,12 @@ void serialEvent() {
 	3: reading is_drawn
 	4: error*/
 	while (Serial.available()) {
-		Serial.println("received_serial");
 		if(commands_saved == MAX_COMMANDS) {
 			Serial.println("STACK_FULL");
 			break;
 		}
 		// get the new byte:
 		char inChar = (char)Serial.read();
-		Serial.println("received_serial" + inChar);
 		if (inChar == '\n') {
 			if (serial_state != WAITING_EOL) {
 				Serial.println("ERROR");
